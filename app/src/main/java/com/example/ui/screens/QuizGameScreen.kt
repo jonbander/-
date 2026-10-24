@@ -89,13 +89,19 @@ fun QuizGameScreen(
   onAddStars: (Int) -> Unit,
   onPlaySound: (String) -> Unit,
   onPlaySuccessChime: () -> Unit,
+  initialQuestionIndex: Int,
+  initialAnswered: Boolean,
+  initialSelectedOption: Int?,
+  initialCorrectCount: Int,
+  onAnswerSubmitted: (questionIndex: Int, selectedOption: Int, isCorrect: Boolean) -> Boolean,
+  onQuestionAdvanced: (nextQuestionIndex: Int) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  var currentQuestionIndex by remember { mutableIntStateOf(0) }
-  var selectedOptionIndex by remember { mutableStateOf<Int?>(null) }
-  var isAnswerSubmitted by remember { mutableStateOf(false) }
+  var currentQuestionIndex by remember { mutableIntStateOf(initialQuestionIndex.coerceIn(0, 6)) }
+  var selectedOptionIndex by remember { mutableStateOf(initialSelectedOption) }
+  var isAnswerSubmitted by remember { mutableStateOf(initialAnswered) }
   var showCelebration by remember { mutableStateOf(false) }
-  var correctCount by remember { mutableIntStateOf(0) }
+  var correctCount by remember { mutableIntStateOf(initialCorrectCount) }
 
   val questions = remember {
     listOf(
@@ -180,6 +186,13 @@ fun QuizGameScreen(
   }
 
   val currentQ = questions[currentQuestionIndex % questions.size]
+
+  fun advanceToNextQuestion() {
+    isAnswerSubmitted = false
+    selectedOptionIndex = null
+    currentQuestionIndex = (currentQuestionIndex + 1) % questions.size
+    onQuestionAdvanced(currentQuestionIndex)
+  }
 
   // Speak question on launch or change
   LaunchedEffect(currentQuestionIndex) {
@@ -338,9 +351,12 @@ fun QuizGameScreen(
             .clickable(enabled = !isAnswerSubmitted) {
               selectedOptionIndex = index
               isAnswerSubmitted = true
+              val isFirstSubmission = onAnswerSubmitted(currentQuestionIndex, index, option.isCorrect)
               if (option.isCorrect) {
-                correctCount++
-                onAddStars(1)
+                if (isFirstSubmission) {
+                  correctCount++
+                  onAddStars(1)
+                }
                 onPlaySuccessChime()
                 onPlaySound("أحسنت يا بطل! إجابة صحيحة! ${currentQ.explanation}")
                 showCelebration = true
@@ -438,9 +454,7 @@ fun QuizGameScreen(
 
       Button(
         onClick = {
-          isAnswerSubmitted = false
-          selectedOptionIndex = null
-          currentQuestionIndex = (currentQuestionIndex + 1) % questions.size
+          advanceToNextQuestion()
         },
         modifier = Modifier
           .fillMaxWidth()
@@ -470,9 +484,7 @@ fun QuizGameScreen(
       onDismiss = { showCelebration = false },
       onContinue = {
         showCelebration = false
-        isAnswerSubmitted = false
-        selectedOptionIndex = null
-        currentQuestionIndex = (currentQuestionIndex + 1) % questions.size
+        advanceToNextQuestion()
       }
     )
   }

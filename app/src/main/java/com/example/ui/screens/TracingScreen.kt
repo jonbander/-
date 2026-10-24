@@ -76,20 +76,23 @@ fun TracingScreen(
   currentLetter: ArabicLetter,
   allLetters: List<ArabicLetter>,
   onSelectLetter: (ArabicLetter) -> Unit,
+  initialPosition: LetterPosition?,
+  onPositionSelected: (LetterPosition) -> Unit,
   onFormCompleted: (ArabicLetter, LetterPosition) -> Unit,
   onPlaySound: (String) -> Unit,
   onPlaySuccessChime: () -> Unit,
   modifier: Modifier = Modifier
 ) {
-  var selectedPositionIndex by remember { mutableIntStateOf(0) }
-  var showCelebration by remember { mutableStateOf(false) }
-
   val positions = listOf(
     LetterPosition.ISOLATED,
     LetterPosition.INITIAL,
     LetterPosition.MEDIAL,
     LetterPosition.FINAL
   )
+  var selectedPositionIndex by remember(currentLetter.char) {
+    mutableIntStateOf(positions.indexOf(initialPosition).coerceAtLeast(0))
+  }
+  var showCelebration by remember { mutableStateOf(false) }
   val letterColor = Color(currentLetter.colorHex)
   val selectedPosition = positions[selectedPositionIndex.coerceIn(positions.indices)]
   val currentForm = currentLetter.forms.firstOrNull { it.position == selectedPosition }
@@ -126,6 +129,7 @@ fun TracingScreen(
             .clickable {
               onSelectLetter(letter)
               selectedPositionIndex = 0
+              onPositionSelected(LetterPosition.ISOLATED)
               onPlaySound("حرف ${letter.phoneticName}")
             }
         ) {
@@ -233,6 +237,7 @@ fun TracingScreen(
               .background(if (isSelected) letterColor else Color.Transparent)
               .clickable {
                 selectedPositionIndex = index
+                onPositionSelected(pos)
                 matchingForm?.let {
                   onPlaySound("${pos.arabicName}.. ${it.glyph}")
                 }
@@ -384,11 +389,13 @@ fun TracingScreen(
         // Move to next position or next letter
         if (selectedPositionIndex < 3) {
           selectedPositionIndex++
+          onPositionSelected(positions[selectedPositionIndex])
         } else {
           val currentIndex = allLetters.indexOfFirst { it.id == currentLetter.id }
           if (currentIndex != -1 && currentIndex + 1 < allLetters.size) {
             onSelectLetter(allLetters[currentIndex + 1])
             selectedPositionIndex = 0
+            onPositionSelected(LetterPosition.ISOLATED)
           }
         }
       }

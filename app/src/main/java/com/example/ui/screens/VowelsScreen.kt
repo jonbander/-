@@ -39,6 +39,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,10 +75,19 @@ fun VowelsScreen(
   allLetters: List<ArabicLetter>,
   onSelectLetter: (ArabicLetter) -> Unit,
   onPlaySound: (String) -> Unit,
+  initialSelectedTab: Int,
+  onVowelSectionOpened: (ArabicLetter, Int) -> Unit,
+  onSelectedTabChanged: (Int) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  var selectedTab by remember { mutableIntStateOf(0) }
+  var selectedTab by remember(currentLetter.id) {
+    mutableIntStateOf(initialSelectedTab.coerceIn(0, 2))
+  }
   val letterColor = Color(currentLetter.colorHex)
+
+  LaunchedEffect(currentLetter.char, selectedTab) {
+    onVowelSectionOpened(currentLetter, selectedTab)
+  }
 
   Column(
     modifier = modifier
@@ -200,7 +210,10 @@ fun VowelsScreen(
     ) {
       Tab(
         selected = selectedTab == 0,
-        onClick = { selectedTab = 0 },
+        onClick = {
+          selectedTab = 0
+          onSelectedTabChanged(0)
+        },
         text = {
           Text(
             text = "مقارنة المدود ⚖️",
@@ -211,7 +224,10 @@ fun VowelsScreen(
       )
       Tab(
         selected = selectedTab == 1,
-        onClick = { selectedTab = 1 },
+        onClick = {
+          selectedTab = 1
+          onSelectedTabChanged(1)
+        },
         text = {
           Text(
             text = "المد القصير ⏱️",
@@ -222,7 +238,10 @@ fun VowelsScreen(
       )
       Tab(
         selected = selectedTab == 2,
-        onClick = { selectedTab = 2 },
+        onClick = {
+          selectedTab = 2
+          onSelectedTabChanged(2)
+        },
         text = {
           Text(
             text = "المد الطويل 🎶",

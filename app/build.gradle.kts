@@ -11,8 +11,9 @@ android {
     applicationId = "com.aistudio.arabickidsletters.wzkbqp"
     minSdk = 30
     targetSdk = 36
-    versionCode = 4
-    versionName = "1.3"
+    // Internal build number stays above the existing test release for Android updates.
+    versionCode = 5
+    versionName = "1.0.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

@@ -1,6 +1,8 @@
 package com.example.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VolumeOff
@@ -50,6 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -64,17 +68,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.R
 import com.example.data.model.ArabicLetter
 import com.example.data.repository.LetterRepository
 import com.example.data.repository.UserProgressRepository
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.AboutScreen
+import com.example.ui.screens.FirstRunNameScreen
 import com.example.ui.screens.QuizGameScreen
 import com.example.ui.screens.StickersScreen
 import com.example.ui.screens.TracingScreen
@@ -103,12 +111,64 @@ fun MainScreen(
 ) {
   // Force RTL layout direction for authentic Arabic experience
   CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    val context = LocalContext.current
+    val childName by progressRepository.childName.collectAsState()
     val totalStars by progressRepository.totalStars.collectAsState()
     val completedLetters by progressRepository.completedLetters.collectAsState()
+    val tracedFormsCount by progressRepository.tracedFormsCount.collectAsState()
+    val practicedVowelSections by progressRepository.practicedVowelSections.collectAsState()
+    val lastVowelTab by progressRepository.lastVowelTab.collectAsState()
+    val quizCurrentQuestion by progressRepository.quizCurrentQuestionIndex.collectAsState()
+    val quizAnswered by progressRepository.quizQuestionAnswered.collectAsState()
+    val quizSelectedOption by progressRepository.quizSelectedOptionIndex.collectAsState()
+    val quizCorrectAnswers by progressRepository.quizCorrectAnswers.collectAsState()
+    val quizAnsweredQuestions by progressRepository.quizAnsweredQuestions.collectAsState()
+    val highestQuizQuestion by progressRepository.highestQuizQuestion.collectAsState()
+    var importMessage by remember { mutableStateOf<String?>(null) }
+    val importProgressLauncher = rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+      if (uri != null) {
+        val imported = runCatching {
+          context.contentResolver.openInputStream(uri)?.use {
+            progressRepository.importLegacyProgress(it)
+          } == true
+        }.getOrDefault(false)
+        importMessage = if (imported) {
+          "تم استيراد النجوم وأشكال الحروف. أدخل اسم الطفل للمتابعة؛ سجل المدود والاختبار سيبدأ في النسخة الرسمية."
+        } else {
+          "تعذرت قراءة الملف. اختر ملف kids_arabic_progress.xml الذي استخرجته عبر ADB."
+        }
+      }
+    }
 
-    var currentTab by remember { mutableStateOf(AppTab.HOME) }
-    var selectedLetter by remember { mutableStateOf(LetterRepository.letters[1]) } // Default to 'ب'
+    var currentTab by remember {
+      mutableStateOf(
+        progressRepository.lastTabName()?.let { saved ->
+          AppTab.values().firstOrNull { it.name == saved }
+        } ?: AppTab.HOME
+      )
+    }
+    var selectedLetter by remember {
+      mutableStateOf(
+        LetterRepository.letters.firstOrNull { it.char == progressRepository.lastLetterChar() }
+          ?: LetterRepository.letters[1]
+      )
+    }
+    var showAboutScreen by remember { mutableStateOf(false) }
     var isMuted by remember { mutableStateOf(false) }
+    val resumeTab = AppTab.values().firstOrNull {
+      it.name == progressRepository.lastLearningTabName()
+    } ?: AppTab.TRACING
+    val resumeActivityName = when (resumeTab) {
+      AppTab.TRACING -> "كتابة الحروف"
+      AppTab.VOWELS -> "المدود والحركات"
+      AppTab.QUIZ -> "لعبة التحدي"
+      else -> "كتابة الحروف"
+    }
+
+    LaunchedEffect(currentTab) { progressRepository.saveLastTab(currentTab.name) }
+    LaunchedEffect(selectedLetter.char) { progressRepository.saveLastLetter(selectedLetter.char) }
 
     fun playSound(text: String) {
       if (!isMuted) {
@@ -128,12 +188,20 @@ fun MainScreen(
       }
     }
 
-    // Handle back button: return to Home tab if on another tab
-    BackHandler(enabled = currentTab != AppTab.HOME) {
-      currentTab = AppTab.HOME
+    // Handle back button from About or return to Home from another tab.
+    BackHandler(enabled = childName.isNotBlank() && (showAboutScreen || currentTab != AppTab.HOME)) {
+      if (showAboutScreen) showAboutScreen = false else currentTab = AppTab.HOME
     }
 
-    Scaffold(
+    if (childName.isBlank()) {
+      FirstRunNameScreen(
+        onSaveName = progressRepository::saveChildName,
+        onRequestImport = {
+          importProgressLauncher.launch(arrayOf("text/xml", "application/xml", "*/*"))
+        },
+        importMessage = importMessage
+      )
+    } else Scaffold(
       modifier = modifier.fillMaxSize(),
       containerColor = MaterialTheme.colorScheme.background,
       contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -162,13 +230,13 @@ fun MainScreen(
               Spacer(modifier = Modifier.width(10.dp))
               Column {
                 Text(
-                  text = "حروفي المرحة 🎈",
+                  text = if (showAboutScreen) "حول التطبيق" else "حروفي المرحة 🎈",
                   fontSize = 18.sp,
                   fontWeight = FontWeight.Black,
                   color = KidsPrimary
                 )
                 Text(
-                  text = when (currentTab) {
+                  text = if (showAboutScreen) "معلومات التطبيق والتقدم المحفوظ" else when (currentTab) {
                     AppTab.HOME -> "تعلم الحروف العربية للأطفال"
                     AppTab.TRACING -> "أشكال الحرف: منفصل، أول، وسط، آخر"
                     AppTab.VOWELS -> "المد القصير والمد الطويل"
@@ -182,6 +250,18 @@ fun MainScreen(
             }
           },
           actions = {
+            IconButton(
+              onClick = { showAboutScreen = !showAboutScreen },
+              modifier = Modifier.size(40.dp)
+            ) {
+              Icon(
+                imageVector = if (showAboutScreen) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Info,
+                contentDescription = if (showAboutScreen) "العودة" else "حول التطبيق",
+                tint = KidsSecondary
+              )
+            }
+
+            if (!showAboutScreen) {
             // Sound toggle
             IconButton(
               onClick = {
@@ -230,10 +310,12 @@ fun MainScreen(
                 )
               }
             }
+            }
           }
         )
       },
       bottomBar = {
+        if (!showAboutScreen) {
         NavigationBar(
           modifier = Modifier
             .windowInsetsPadding(WindowInsets.navigationBars)
@@ -281,9 +363,30 @@ fun MainScreen(
             )
           }
         }
+        }
       }
     ) { innerPadding ->
-      Crossfade(
+      if (showAboutScreen) {
+        AboutScreen(
+          childName = childName,
+          appVersion = BuildConfig.VERSION_NAME,
+          totalStars = totalStars,
+          tracedForms = tracedFormsCount,
+          totalForms = LetterRepository.letters.sumOf { it.forms.size },
+          practicedVowelSections = practicedVowelSections.size,
+          totalVowelSections = LetterRepository.letters.size * 3,
+          quizAnsweredQuestions = quizAnsweredQuestions,
+          quizCorrectAnswers = quizCorrectAnswers,
+          highestQuizQuestion = highestQuizQuestion,
+          modifier = Modifier.padding(innerPadding),
+          onClearProgress = { keepName ->
+            progressRepository.clearProgress(keepName)
+            selectedLetter = LetterRepository.letters[1]
+            currentTab = AppTab.HOME
+            showAboutScreen = false
+          }
+        )
+      } else Crossfade(
         targetState = currentTab,
         modifier = Modifier
           .fillMaxSize()
@@ -292,6 +395,9 @@ fun MainScreen(
         when (tab) {
           AppTab.HOME -> HomeScreen(
             letters = LetterRepository.letters,
+            childName = childName,
+            resumeActivityName = resumeActivityName,
+            onResumeLearning = { currentTab = resumeTab },
             completedLetters = completedLetters,
             totalStars = totalStars,
             onSelectLetter = { letter ->
@@ -314,6 +420,8 @@ fun MainScreen(
             currentLetter = selectedLetter,
             allLetters = LetterRepository.letters,
             onSelectLetter = { letter -> selectedLetter = letter },
+            initialPosition = progressRepository.lastTracePosition(),
+            onPositionSelected = progressRepository::saveLastTracePosition,
             onFormCompleted = { letter, position ->
               progressRepository.recordFormTraced(letter.char, position)
             },
@@ -325,14 +433,27 @@ fun MainScreen(
             currentLetter = selectedLetter,
             allLetters = LetterRepository.letters,
             onSelectLetter = { letter -> selectedLetter = letter },
-            onPlaySound = { text -> playSound(text) }
+            onPlaySound = { text -> playSound(text) },
+            initialSelectedTab = lastVowelTab,
+            onVowelSectionOpened = { letter, section ->
+              progressRepository.recordVowelSection(letter.char, section)
+            },
+            onSelectedTabChanged = progressRepository::saveLastVowelTab
           )
 
           AppTab.QUIZ -> QuizGameScreen(
             letters = LetterRepository.letters,
             onAddStars = { stars -> progressRepository.addStars(stars) },
             onPlaySound = { text -> playSound(text) },
-            onPlaySuccessChime = { playSuccess() }
+            onPlaySuccessChime = { playSuccess() },
+            initialQuestionIndex = quizCurrentQuestion,
+            initialAnswered = quizAnswered,
+            initialSelectedOption = quizSelectedOption,
+            initialCorrectCount = quizCorrectAnswers,
+            onAnswerSubmitted = { questionIndex, selectedOption, isCorrect ->
+              progressRepository.recordQuizAnswer(questionIndex, selectedOption, isCorrect)
+            },
+            onQuestionAdvanced = progressRepository::advanceQuizTo
           )
 
           AppTab.STICKERS -> StickersScreen(

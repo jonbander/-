@@ -74,6 +74,9 @@ import com.example.ui.theme.KidsTertiary
 @Composable
 fun HomeScreen(
   letters: List<ArabicLetter>,
+  childName: String,
+  resumeActivityName: String,
+  onResumeLearning: () -> Unit,
   completedLetters: Set<String>,
   totalStars: Int,
   onSelectLetter: (ArabicLetter) -> Unit,
@@ -151,7 +154,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.width(10.dp))
             Column {
               Text(
-                text = "مرحباً يا بطل! 🌟",
+                text = "مرحباً يا $childName! 🌟",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Black,
                 color = Color.White
@@ -168,6 +171,31 @@ fun HomeScreen(
     }
 
     // 2. Stars & Progress Bar
+    item(span = { GridItemSpan(maxLineSpan) }) {
+      Surface(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable(onClick = onResumeLearning)
+          .testTag("resume_learning"),
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xFFEAF4FF),
+        border = androidx.compose.foundation.BorderStroke(1.dp, KidsPrimary.copy(alpha = 0.25f))
+      ) {
+        Row(
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+          Column(modifier = Modifier.weight(1f)) {
+            Text("تابع التعلّم يا $childName", fontWeight = FontWeight.Black, color = KidsPrimary)
+            Text("آخر نشاط: $resumeActivityName", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          Icon(Icons.Default.PlayArrow, contentDescription = "متابعة التعلم", tint = KidsPrimary)
+        }
+      }
+    }
+
+    // 3. Stars & Progress Bar
     item(span = { GridItemSpan(maxLineSpan) }) {
       Row(
         modifier = Modifier.fillMaxWidth(),
