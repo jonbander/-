@@ -5,9 +5,6 @@ import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.text.Layout
-import android.text.StaticLayout
-import android.text.TextDirectionHeuristics
 import android.text.TextPaint
 import androidx.compose.ui.geometry.Offset
 import kotlin.math.ceil
@@ -68,51 +65,36 @@ object GlyphTraceMatcher {
         900,
         false
       )
-      textAlign = Paint.Align.LEFT
+      textAlign = Paint.Align.CENTER
       isSubpixelText = true
     }
     val maxTextWidth = bitmapWidth * 0.88f
-    var layout: StaticLayout? = null
-    for (attempt in 0 until 8) {
+    val maxTextHeight = bitmapHeight * 0.72f
+    repeat(3) {
       val measuredWidth = paint.measureText(glyph)
       if (measuredWidth > maxTextWidth && measuredWidth > 0f) {
         paint.textSize *= maxTextWidth / measuredWidth
       }
-
-      val candidate = try {
-        StaticLayout.Builder
-          .obtain(glyph, 0, glyph.length, paint, bitmapWidth)
-          .setAlignment(Layout.Alignment.ALIGN_CENTER)
-          .setTextDirection(TextDirectionHeuristics.RTL)
-          .setIncludePad(false)
-          .setMaxLines(1)
-          .build()
-      } catch (_: RuntimeException) {
-        bitmap.recycle()
-        return null
+      val metrics = paint.fontMetrics
+      val measuredHeight = metrics.descent - metrics.ascent
+      if (measuredHeight > maxTextHeight && measuredHeight > 0f) {
+        paint.textSize *= maxTextHeight / measuredHeight
       }
-      if (candidate.lineCount != 1 || candidate.height <= 0) break
-      if (candidate.height <= bitmapHeight * 0.90f) {
-        layout = candidate
-        break
-      }
-      paint.textSize *= (bitmapHeight * 0.86f / candidate.height).coerceIn(0.5f, 0.9f)
     }
 
-    val fittedLayout = layout
-    if (fittedLayout == null) {
-      bitmap.recycle()
-      return null
-    }
-
-    val baseline = bitmapHeight * 0.72f
-    val top = (baseline - fittedLayout.height * 0.78f)
-      .coerceIn(0f, (bitmapHeight - fittedLayout.height).toFloat())
     val androidCanvas = AndroidCanvas(bitmap)
-    androidCanvas.save()
-    androidCanvas.translate(0f, top)
-    fittedLayout.draw(androidCanvas)
-    androidCanvas.restore()
+    val baseline = bitmapHeight * 0.72f
+    androidCanvas.drawTextRun(
+      glyph,
+      0,
+      glyph.length,
+      0,
+      glyph.length,
+      bitmapWidth / 2f,
+      baseline,
+      true,
+      paint
+    )
 
     val pixels = IntArray(bitmapWidth * bitmapHeight)
     bitmap.getPixels(pixels, 0, bitmapWidth, 0, 0, bitmapWidth, bitmapHeight)
