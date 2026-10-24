@@ -2,6 +2,8 @@ package com.example.ui.components
 
 import android.graphics.Bitmap
 import androidx.compose.ui.geometry.Offset
+import com.example.data.model.LetterPosition
+import com.example.data.repository.LetterRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -77,6 +79,33 @@ class GlyphTraceMatcherTest {
     assertTrue(template!!.skeleton.size >= 8)
     assertTrue(template.bitmap.width <= 320)
     assertTrue(template.bitmap.height <= 320)
+  }
+
+  @Test
+  fun `every repository letter form has a nonempty renderable template`() {
+    val expectedPositions = listOf(
+      LetterPosition.ISOLATED,
+      LetterPosition.INITIAL,
+      LetterPosition.MEDIAL,
+      LetterPosition.FINAL
+    )
+
+    LetterRepository.letters.forEach { letter ->
+      assertEquals("${letter.char} must define each position exactly once", expectedPositions,
+        letter.forms.map { it.position })
+      letter.forms.forEach { form ->
+        assertTrue("${letter.char} ${form.position} glyph must not be blank", form.glyph.isNotBlank())
+        val template = GlyphTraceMatcher.createTemplate(
+          glyph = form.glyph,
+          canvasWidth = 600,
+          canvasHeight = 560,
+          textSizePx = 420f
+        )
+        assertNotNull("Could not render ${letter.char} ${form.position}: ${form.glyph}", template)
+        assertTrue("Template is empty for ${letter.char} ${form.position}", template!!.skeleton.size >= 8)
+        template.bitmap.recycle()
+      }
+    }
   }
 
   private fun lineAndCornerTemplate(): GlyphTraceTemplate {

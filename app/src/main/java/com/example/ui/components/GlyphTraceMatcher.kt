@@ -38,11 +38,11 @@ object GlyphTraceMatcher {
   private const val MAX_BITMAP_DIMENSION = 320
   private const val ALPHA_THRESHOLD = 12
   private const val SAMPLE_SPACING_PX = 2.5f
-  private const val TOLERANCE_FRACTION = 0.05f
-  private const val MIN_PRECISION = 0.80f
-  private const val MIN_COVERAGE = 0.75f
-  private const val MIN_COMPONENT_COVERAGE = 0.50f
-  private const val MIN_STROKE_LENGTH_FRACTION = 0.10f
+  private const val TOLERANCE_FRACTION = 0.035f
+  private const val MIN_PRECISION = 0.86f
+  const val REQUIRED_COVERAGE = 0.84f
+  private const val MIN_COMPONENT_COVERAGE = 0.68f
+  private const val MIN_STROKE_LENGTH_FRACTION = 0.14f
 
   fun createTemplate(
     glyph: String,
@@ -72,36 +72,46 @@ object GlyphTraceMatcher {
       isSubpixelText = true
     }
     val maxTextWidth = bitmapWidth * 0.88f
-    val measuredWidth = paint.measureText(glyph)
-    if (measuredWidth > maxTextWidth && measuredWidth > 0f) {
-      paint.textSize *= maxTextWidth / measuredWidth
+    var layout: StaticLayout? = null
+    for (attempt in 0 until 8) {
+      val measuredWidth = paint.measureText(glyph)
+      if (measuredWidth > maxTextWidth && measuredWidth > 0f) {
+        paint.textSize *= maxTextWidth / measuredWidth
+      }
+
+      val candidate = try {
+        StaticLayout.Builder
+          .obtain(glyph, 0, glyph.length, paint, bitmapWidth)
+          .setAlignment(Layout.Alignment.ALIGN_CENTER)
+          .setTextDirection(TextDirectionHeuristics.RTL)
+          .setIncludePad(false)
+          .setMaxLines(1)
+          .build()
+      } catch (_: RuntimeException) {
+        bitmap.recycle()
+        return null
+      }
+      if (candidate.lineCount != 1 || candidate.height <= 0) break
+      if (candidate.height <= bitmapHeight * 0.90f) {
+        layout = candidate
+        break
+      }
+      paint.textSize *= (bitmapHeight * 0.86f / candidate.height).coerceIn(0.5f, 0.9f)
     }
 
-    val layout = try {
-      StaticLayout.Builder
-        .obtain(glyph, 0, glyph.length, paint, bitmapWidth)
-        .setAlignment(Layout.Alignment.ALIGN_CENTER)
-        .setTextDirection(TextDirectionHeuristics.RTL)
-        .setIncludePad(false)
-        .setMaxLines(1)
-        .build()
-    } catch (_: RuntimeException) {
-      bitmap.recycle()
-      return null
-    }
-
-    if (layout.lineCount != 1 || layout.height <= 0 || layout.height > bitmapHeight) {
+    val fittedLayout = layout
+    if (fittedLayout == null) {
       bitmap.recycle()
       return null
     }
 
     val baseline = bitmapHeight * 0.72f
-    val top = (baseline - layout.height * 0.78f)
-      .coerceIn(0f, (bitmapHeight - layout.height).toFloat())
+    val top = (baseline - fittedLayout.height * 0.78f)
+      .coerceIn(0f, (bitmapHeight - fittedLayout.height).toFloat())
     val androidCanvas = AndroidCanvas(bitmap)
     androidCanvas.save()
     androidCanvas.translate(0f, top)
-    layout.draw(androidCanvas)
+    fittedLayout.draw(androidCanvas)
     androidCanvas.restore()
 
     val pixels = IntArray(bitmapWidth * bitmapHeight)
@@ -160,7 +170,7 @@ object GlyphTraceMatcher {
     val minimumLength = minOf(template.bitmap.width, template.bitmap.height) * MIN_STROKE_LENGTH_FRACTION
     val enoughLength = totalLength >= minimumLength
     val accepted = precision >= MIN_PRECISION &&
-      coverage >= MIN_COVERAGE &&
+      coverage >= REQUIRED_COVERAGE &&
       missingComponents == 0 &&
       enoughLength
 

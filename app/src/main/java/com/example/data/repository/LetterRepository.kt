@@ -645,7 +645,7 @@ object LetterRepository {
       emoji = "🎁",
       colorHex = 0xFFFF4081,
       forms = listOf(
-        form(LetterPosition.ISOLATED, "هـ", "مِيَاه", "مِيَا ه", "💧", "مياه عذبة نشربها كل يوم", "دائرة لطيفة تشبه الحلقة أو الكعكة", listOf(GuidePoint(0.5f, 0.4f, 1, isStart = true), GuidePoint(0.7f, 0.6f, 2), GuidePoint(0.5f, 0.8f, 3), GuidePoint(0.3f, 0.6f, 4))),
+        form(LetterPosition.ISOLATED, "ه", "مِيَاه", "مِيَا ه", "💧", "مياه عذبة نشربها كل يوم", "دائرة لطيفة تشبه الحلقة أو الكعكة", listOf(GuidePoint(0.5f, 0.4f, 1, isStart = true), GuidePoint(0.7f, 0.6f, 2), GuidePoint(0.5f, 0.8f, 3), GuidePoint(0.3f, 0.6f, 4))),
         form(LetterPosition.INITIAL, "هـ", "هَدِيَّة", "هَـدِيَّة", "🎁", "هدية جميلة في عيد الميلاد", "قوس كبير بداخله دائرة صغيرة تمتد لليسار", listOf(GuidePoint(0.55f, 0.75f, 1, isStart = true), GuidePoint(0.75f, 0.45f, 2), GuidePoint(0.6f, 0.55f, 3), GuidePoint(0.2f, 0.75f, 4))),
         form(LetterPosition.MEDIAL, "ـهـ", "فَهْد", "فَـهْـد", "🐆", "فهد سريع جداً", "كفيونكة جميلة حلقة للأعلى وحلقة للأسفل", listOf(GuidePoint(0.85f, 0.75f, 1, isStart = true), GuidePoint(0.5f, 0.45f, 2), GuidePoint(0.5f, 0.9f, 3), GuidePoint(0.15f, 0.75f, 4))),
         form(LetterPosition.FINAL, "ـه", "وَجْه", "وَجْـه", "😊", "وجه مبتسم يشرق بالسعادة", "يتصل بالحرف قبله ويرتفع كرقبة صغيرة مع حلقة", listOf(GuidePoint(0.85f, 0.75f, 1, isStart = true), GuidePoint(0.55f, 0.75f, 2), GuidePoint(0.55f, 0.45f, 3), GuidePoint(0.35f, 0.6f, 4)))

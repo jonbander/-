@@ -387,7 +387,7 @@ fun TracingCanvas(
             validationMessage = when {
               glyphTemplate == null -> "لم أتمكن من تجهيز شكل الحرف. أعد اختيار الحرف ثم حاول مجددًا."
               result.missingComponents > 0 -> "لا تنسَ نقاط الحرف أو الهمزة، وأكمل الرسم فوق النموذج."
-              result.coverage < 0.75f -> "أكمل رسم جسم الحرف ونقاطه فوق النموذج، ثم حاول مرة أخرى."
+              result.coverage < GlyphTraceMatcher.REQUIRED_COVERAGE -> "أكمل رسم جسم الحرف ونقاطه فوق النموذج، ثم حاول مرة أخرى."
               else -> "الرسم بعيد عن شكل الحرف. اتبع النموذج وحاول مرة أخرى."
             }
           }

@@ -84,8 +84,16 @@ fun TracingScreen(
   var selectedPositionIndex by remember { mutableIntStateOf(0) }
   var showCelebration by remember { mutableStateOf(false) }
 
+  val positions = listOf(
+    LetterPosition.ISOLATED,
+    LetterPosition.INITIAL,
+    LetterPosition.MEDIAL,
+    LetterPosition.FINAL
+  )
   val letterColor = Color(currentLetter.colorHex)
-  val currentForm = currentLetter.forms.getOrNull(selectedPositionIndex) ?: currentLetter.forms.first()
+  val selectedPosition = positions[selectedPositionIndex.coerceIn(positions.indices)]
+  val currentForm = currentLetter.forms.firstOrNull { it.position == selectedPosition }
+    ?: currentLetter.forms.first()
 
   val scrollState = rememberScrollState()
 
@@ -199,13 +207,6 @@ fun TracingScreen(
     }
 
     // 3. 4-Positions Tab Row (منفصل, أول الكلمة, وسط الكلمة, آخر الكلمة)
-    val positions = listOf(
-      LetterPosition.ISOLATED,
-      LetterPosition.INITIAL,
-      LetterPosition.MEDIAL,
-      LetterPosition.FINAL
-    )
-
     Surface(
       modifier = Modifier
         .fillMaxWidth()
@@ -221,7 +222,7 @@ fun TracingScreen(
       ) {
         positions.forEachIndexed { index, pos ->
           val isSelected = selectedPositionIndex == index
-          val matchingForm = currentLetter.forms.getOrNull(index)
+          val matchingForm = currentLetter.forms.firstOrNull { it.position == pos }
 
           Box(
             contentAlignment = Alignment.Center,
