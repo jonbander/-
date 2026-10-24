@@ -87,12 +87,14 @@ fun TracingCanvas(
   glyph: String,
   guidePoints: List<GuidePoint>,
   primaryColor: Color,
+  sessionKey: String,
   onCompleted: () -> Unit,
   modifier: Modifier = Modifier
 ) {
-  val strokes = remember { mutableStateListOf<DrawnStroke>() }
-  var currentPoints by remember { mutableStateOf<List<Offset>>(emptyList()) }
-  val sparkles = remember { mutableStateListOf<SparkleParticle>() }
+  val strokes = remember(sessionKey) { mutableStateListOf<DrawnStroke>() }
+  var currentPoints by remember(sessionKey) { mutableStateOf<List<Offset>>(emptyList()) }
+  val sparkles = remember(sessionKey) { mutableStateListOf<SparkleParticle>() }
+  var hasCompleted by remember(sessionKey) { mutableStateOf(false) }
 
   val brushColors = listOf(
     KidsPrimary,
@@ -131,7 +133,7 @@ fun TracingCanvas(
         .clip(RoundedCornerShape(24.dp))
         .background(KidsCanvasBg)
         .border(3.dp, primaryColor.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-        .pointerInput(selectedColor) {
+        .pointerInput(selectedColor, sessionKey) {
           detectDragGestures(
             onDragStart = { offset ->
               currentPoints = listOf(offset)
@@ -413,15 +415,20 @@ fun TracingCanvas(
     // Big Celebratory "أحسنت / تم الإنجاز" Button for 5-Year-Olds
     Button(
       onClick = {
-        onCompleted()
+        if (strokes.isNotEmpty() && !hasCompleted) {
+          hasCompleted = true
+          onCompleted()
+        }
       },
+      enabled = strokes.isNotEmpty() && !hasCompleted,
       modifier = Modifier
         .fillMaxWidth()
         .height(56.dp)
         .testTag("finish_tracing_button"),
       shape = RoundedCornerShape(20.dp),
       colors = ButtonDefaults.buttonColors(
-        containerColor = KidsSecondary
+        containerColor = KidsSecondary,
+        disabledContainerColor = KidsSecondary.copy(alpha = 0.45f)
       ),
       elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
     ) {
@@ -437,7 +444,11 @@ fun TracingCanvas(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-          text = "أنهيت كتابة الحرف! 🌟",
+          text = when {
+            hasCompleted -> "تم تسجيل هذا الشكل ✓"
+            strokes.isEmpty() -> "ارسم الحرف أولاً ✍️"
+            else -> "أنهيت كتابة الحرف! 🌟"
+          },
           fontSize = 18.sp,
           fontWeight = FontWeight.ExtraBold,
           color = Color.White

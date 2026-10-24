@@ -362,6 +362,7 @@ fun TracingScreen(
       glyph = currentForm.glyph,
       guidePoints = currentForm.guidePoints,
       primaryColor = letterColor,
+      sessionKey = "${currentLetter.id}:${currentForm.position.name}",
       onCompleted = {
         onPlaySuccessChime()
         onPlaySound("أحسنت يا بطل! رسمك لحرف ${currentLetter.name} في ${currentForm.position.arabicName} ممتاز جداً!")

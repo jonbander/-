@@ -26,20 +26,37 @@ class SoundHelper(context: Context) {
     try {
       tts = TextToSpeech(context.applicationContext) { status ->
         if (status == TextToSpeech.SUCCESS) {
-          val result = tts?.setLanguage(Locale("ar"))
-          if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-            Log.w("SoundHelper", "Arabic TTS not supported or missing data, falling back to default")
-            tts?.language = Locale.getDefault()
-          } else {
-            tts?.setSpeechRate(0.85f) // Slightly slower and clearer for 5-year-olds
-            tts?.setPitch(1.1f)      // Friendly, cheerful higher pitch
-            isTtsReady = true
-          }
+          configureTtsLanguage()
         }
       }
     } catch (e: Exception) {
       Log.w("SoundHelper", "Failed to initialize TextToSpeech", e)
     }
+  }
+
+  private fun configureTtsLanguage() {
+    val engine = tts ?: return
+    val arabicResult = engine.setLanguage(Locale("ar"))
+    val languageResult = if (
+      arabicResult == TextToSpeech.LANG_MISSING_DATA ||
+      arabicResult == TextToSpeech.LANG_NOT_SUPPORTED
+    ) {
+      Log.w("SoundHelper", "Arabic TTS is unavailable; trying the device language")
+      val deviceLocale = Locale.getDefault().takeIf { it.language != "ar" } ?: Locale.US
+      engine.setLanguage(deviceLocale)
+    } else {
+      arabicResult
+    }
+
+    if (languageResult < TextToSpeech.LANG_AVAILABLE) {
+      isTtsReady = false
+      Log.w("SoundHelper", "No supported TTS language is available")
+      return
+    }
+
+    engine.setSpeechRate(0.85f) // Slightly slower and clearer for young learners
+    engine.setPitch(1.1f) // Friendly, cheerful higher pitch
+    isTtsReady = true
   }
 
   fun speak(text: String) {

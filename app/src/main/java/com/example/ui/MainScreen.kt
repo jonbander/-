@@ -315,7 +315,7 @@ fun MainScreen(
             allLetters = LetterRepository.letters,
             onSelectLetter = { letter -> selectedLetter = letter },
             onFormCompleted = { letter, position ->
-              progressRepository.recordFormTraced(letter.char, position.arabicName)
+              progressRepository.recordFormTraced(letter.char, position)
             },
             onPlaySound = { text -> playSound(text) },
             onPlaySuccessChime = { playSuccess() }
