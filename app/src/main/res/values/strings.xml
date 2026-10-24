@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">حروفي المرحة</string>
+    <string name="welcome_title">مرحباً يا بطل!</string>
+    <string name="welcome_subtitle">هيا نتعلم الحروف العربية معاً</string>
+    <string name="tab_letters">الحروف</string>
+    <string name="tab_tracing">كتابة الحرف</string>
+    <string name="tab_vowels">المدود</string>
+    <string name="tab_games">لعبة التحدي</string>
+    <string name="tab_stickers">الملصقات</string>
+    <string name="isolated_form">منفصل</string>
+    <string name="initial_form">أول الكلمة</string>
+    <string name="medial_form">وسط الكلمة</string>
+    <string name="final_form">آخر الكلمة</string>
+    <string name="short_vowels">المد القصير (الحركات)</string>
+    <string name="long_vowels">المد الطويل (حروف المد)</string>
+    <string name="trace_prompt">ارسم بإصبعك على النقط!</string>
+    <string name="clear_canvas">مسح</string>
+    <string name="well_done">أحسنت يا بطل! 🌟</string>
+    <string name="try_again">هيا نحاول مرة أخرى!</string>
+    <string name="star_earned">+1 نجمة ذهبية!</string>
+</resources>

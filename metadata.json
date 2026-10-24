@@ -1,0 +1,6 @@
+{
+  "name": "حروفي المرحة",
+  "description": "لعبة تعليمية تفاعلية ممتعة للأطفال لعمر 5 سنوات لتعلم كتابة الأحرف العربية بأشكالها الأربعة والمدود مع أنشطة تتبع تفاعلية ومكافآت نجوم وملصقات.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
