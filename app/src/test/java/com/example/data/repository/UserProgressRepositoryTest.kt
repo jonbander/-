@@ -187,7 +187,7 @@ class UserProgressRepositoryTest {
     assertTrue(repository.importLegacyProgress(ByteArrayInputStream(backup.toByteArray(Charsets.UTF_8))))
 
     assertEquals(17, repository.totalStars.value)
-    assertEquals(4, repository.tracedFormsCount.value)
+    assertEquals(5, repository.tracedFormsCount.value)
     assertTrue(repository.isLetterCompleted("ب"))
     assertFalse(repository.isLetterCompleted("س"))
     assertEquals(17, UserProgressRepository(context).totalStars.value)
