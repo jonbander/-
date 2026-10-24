@@ -360,7 +360,6 @@ fun TracingScreen(
     // 6. Interactive Tracing Canvas
     TracingCanvas(
       glyph = currentForm.glyph,
-      guidePoints = currentForm.guidePoints,
       primaryColor = letterColor,
       sessionKey = "${currentLetter.id}:${currentForm.position.name}",
       onCompleted = {

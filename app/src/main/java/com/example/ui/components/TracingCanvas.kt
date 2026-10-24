@@ -1,11 +1,7 @@
 package com.example.ui.components
 
 import android.graphics.Paint
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
+import android.graphics.Rect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,13 +29,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -57,18 +50,24 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
-import com.example.data.model.GuidePoint
 import com.example.ui.theme.KidsCanvasBg
 import com.example.ui.theme.KidsCanvasGrid
 import com.example.ui.theme.KidsPrimary
 import com.example.ui.theme.KidsSecondary
 import com.example.ui.theme.KidsTertiary
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class DrawnStroke(
   val path: List<Offset>,
@@ -82,35 +81,9 @@ data class SparkleParticle(
   val radius: Float
 )
 
-private fun createSmoothGuidePath(points: List<Offset>): Path {
-  return Path().apply {
-    if (points.isEmpty()) return@apply
-
-    moveTo(points.first().x, points.first().y)
-    if (points.size == 1) return@apply
-
-    for (index in 0 until points.lastIndex) {
-      val previous = points[(index - 1).coerceAtLeast(0)]
-      val start = points[index]
-      val end = points[index + 1]
-      val next = points[(index + 2).coerceAtMost(points.lastIndex)]
-
-      cubicTo(
-        start.x + (end.x - previous.x) / 6f,
-        start.y + (end.y - previous.y) / 6f,
-        end.x - (next.x - start.x) / 6f,
-        end.y - (next.y - start.y) / 6f,
-        end.x,
-        end.y
-      )
-    }
-  }
-}
-
 @Composable
 fun TracingCanvas(
   glyph: String,
-  guidePoints: List<GuidePoint>,
   primaryColor: Color,
   sessionKey: String,
   onCompleted: () -> Unit,
@@ -120,6 +93,23 @@ fun TracingCanvas(
   var currentPoints by remember(sessionKey) { mutableStateOf<List<Offset>>(emptyList()) }
   val sparkles = remember(sessionKey) { mutableStateListOf<SparkleParticle>() }
   var hasCompleted by remember(sessionKey) { mutableStateOf(false) }
+  var validationMessage by remember(sessionKey) { mutableStateOf<String?>(null) }
+  var canvasPixelSize by remember(sessionKey) { mutableStateOf(IntSize.Zero) }
+  val glyphTextSizePx = with(LocalDensity.current) { 210.sp.toPx() }
+  var glyphTemplate by remember(sessionKey) { mutableStateOf<GlyphTraceTemplate?>(null) }
+  LaunchedEffect(glyph, canvasPixelSize, glyphTextSizePx) {
+    glyphTemplate = null
+    if (canvasPixelSize.width > 0 && canvasPixelSize.height > 0) {
+      glyphTemplate = withContext(Dispatchers.Default) {
+        GlyphTraceMatcher.createTemplate(
+          glyph = glyph,
+          canvasWidth = canvasPixelSize.width,
+          canvasHeight = canvasPixelSize.height,
+          textSizePx = glyphTextSizePx
+        )
+      }
+    }
+  }
 
   val brushColors = listOf(
     KidsPrimary,
@@ -130,18 +120,6 @@ fun TracingCanvas(
     Color(0xFFFFBE0B)
   )
   var selectedColor by remember { mutableStateOf(brushColors[0]) }
-
-  // Pulsating animation for start dot
-  val pulseScale = remember { Animatable(1f) }
-  LaunchedEffect(Unit) {
-    pulseScale.animateTo(
-      targetValue = 1.35f,
-      animationSpec = infiniteRepeatable(
-        animation = tween(700, easing = FastOutSlowInEasing),
-        repeatMode = RepeatMode.Reverse
-      )
-    )
-  }
 
   Column(
     modifier = modifier
@@ -162,6 +140,7 @@ fun TracingCanvas(
       Canvas(
         modifier = Modifier
           .fillMaxSize()
+          .onSizeChanged { canvasPixelSize = it }
           .pointerInput(selectedColor, sessionKey) {
             detectDragGestures(
               onDragStart = { offset ->
@@ -180,6 +159,7 @@ fun TracingCanvas(
                 if (currentPoints.isNotEmpty()) {
                   strokes.add(DrawnStroke(currentPoints, selectedColor, 30f))
                   currentPoints = emptyList()
+                  validationMessage = null
                 }
               },
               onDragCancel = {
@@ -218,89 +198,18 @@ fun TracingCanvas(
           strokeWidth = 3.5.dp.toPx()
         )
 
-        // 2. Draw the trace spine from the same normalized points used by the targets.
-        // This keeps the visible guide, target circles, and finger input in one coordinate space.
-        val bodyPoints = guidePoints
-          .asSequence()
-          .filterNot { it.isDot }
-          .sortedBy { it.order }
-          .map { point -> Offset(point.x * width, point.y * height) }
-          .toList()
-        if (bodyPoints.size > 1) {
-          val guidePath = createSmoothGuidePath(bodyPoints)
-          drawPath(
-            path = guidePath,
-            color = Color(0xFF8290A5).copy(alpha = 0.20f),
-            style = Stroke(
-              width = 28.dp.toPx(),
-              cap = StrokeCap.Round,
-              join = StrokeJoin.Round
-            )
-          )
-          drawPath(
-            path = guidePath,
-            color = primaryColor.copy(alpha = 0.42f),
-            style = Stroke(
-              width = 4.dp.toPx(),
-              cap = StrokeCap.Round,
-              join = StrokeJoin.Round
-            )
+        // 2. Show the selected form itself as the reference, using the same glyph string
+        // displayed by the form buttons. The matcher validates against this exact bitmap.
+        glyphTemplate?.let { template ->
+          drawContext.canvas.nativeCanvas.drawBitmap(
+            template.bitmap,
+            null,
+            Rect(0, 0, width.roundToInt(), height.roundToInt()),
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
           )
         }
 
-        // 3. Draw guide waypoints and start arrow
-        guidePoints.forEach { pt ->
-          val ptOffset = Offset(pt.x * width, pt.y * height)
-          if (pt.isStart) {
-            // Big pulsating start target
-            drawCircle(
-              color = Color(0xFF2EC4B6).copy(alpha = 0.35f),
-              radius = 26.dp.toPx() * pulseScale.value,
-              center = ptOffset
-            )
-            drawCircle(
-              color = Color(0xFF2EC4B6),
-              radius = 16.dp.toPx(),
-              center = ptOffset
-            )
-            // Start star icon or number
-            drawContext.canvas.nativeCanvas.apply {
-              val numPaint = Paint().apply {
-                textSize = 14.sp.toPx()
-                color = android.graphics.Color.WHITE
-                textAlign = Paint.Align.CENTER
-                isFakeBoldText = true
-              }
-              drawText("ابدأ", ptOffset.x, ptOffset.y + 5.dp.toPx(), numPaint)
-            }
-          } else if (pt.isDot) {
-            // Dot target (pulsating gold circle)
-            drawCircle(
-              color = KidsSecondary.copy(alpha = 0.3f),
-              radius = 18.dp.toPx() * pulseScale.value,
-              center = ptOffset
-            )
-            drawCircle(
-              color = KidsSecondary,
-              radius = 11.dp.toPx(),
-              center = ptOffset
-            )
-          } else {
-            // Dotted milestone waypoint
-            drawCircle(
-              color = primaryColor.copy(alpha = 0.7f),
-              radius = 10.dp.toPx(),
-              center = ptOffset
-            )
-            drawCircle(
-              color = Color.White,
-              radius = 5.dp.toPx(),
-              center = ptOffset
-            )
-          }
-        }
-
-        // 4. Render completed strokes
+        // 3. Render completed strokes
         strokes.forEach { stroke ->
           if (stroke.path.size > 1) {
             val composePath = Path().apply {
@@ -321,7 +230,7 @@ fun TracingCanvas(
           }
         }
 
-        // 5. Render currently active finger stroke
+        // 4. Render currently active finger stroke
         if (currentPoints.size > 1) {
           val activePath = Path().apply {
             moveTo(currentPoints.first().x, currentPoints.first().y)
@@ -340,7 +249,7 @@ fun TracingCanvas(
           )
         }
 
-        // 6. Draw playful sparkles around finger
+        // 5. Draw playful sparkles around finger
         sparkles.forEach { sp ->
           drawCircle(
             color = sp.color.copy(alpha = 0.75f),
@@ -378,7 +287,7 @@ fun TracingCanvas(
           )
           Spacer(modifier = Modifier.width(6.dp))
           Text(
-            text = "اتبع المسار بإصبعك",
+            text = "تتبّع شكل الحرف بإصبعك",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
@@ -426,6 +335,7 @@ fun TracingCanvas(
           onClick = {
             if (strokes.isNotEmpty()) {
               strokes.removeAt(strokes.lastIndex)
+              validationMessage = null
             }
           },
           modifier = Modifier
@@ -445,6 +355,7 @@ fun TracingCanvas(
           onClick = {
             strokes.clear()
             sparkles.clear()
+            validationMessage = null
           },
           modifier = Modifier
             .size(44.dp)
@@ -467,8 +378,19 @@ fun TracingCanvas(
     Button(
       onClick = {
         if (strokes.isNotEmpty() && !hasCompleted) {
-          hasCompleted = true
-          onCompleted()
+          val result = GlyphTraceMatcher.evaluate(glyphTemplate, strokes.map { it.path })
+          if (result.accepted) {
+            hasCompleted = true
+            validationMessage = null
+            onCompleted()
+          } else {
+            validationMessage = when {
+              glyphTemplate == null -> "لم أتمكن من تجهيز شكل الحرف. أعد اختيار الحرف ثم حاول مجددًا."
+              result.missingComponents > 0 -> "لا تنسَ نقاط الحرف أو الهمزة، وأكمل الرسم فوق النموذج."
+              result.coverage < 0.75f -> "أكمل رسم جسم الحرف ونقاطه فوق النموذج، ثم حاول مرة أخرى."
+              else -> "الرسم بعيد عن شكل الحرف. اتبع النموذج وحاول مرة أخرى."
+            }
+          }
         }
       },
       enabled = strokes.isNotEmpty() && !hasCompleted,
@@ -498,13 +420,27 @@ fun TracingCanvas(
           text = when {
             hasCompleted -> "تم تسجيل هذا الشكل ✓"
             strokes.isEmpty() -> "ارسم الحرف أولاً ✍️"
-            else -> "أنهيت كتابة الحرف! 🌟"
+            validationMessage != null -> "حاول مرة أخرى ✍️"
+            else -> "تحقق من مطابقة الرسم ✓"
           },
           fontSize = 18.sp,
           fontWeight = FontWeight.ExtraBold,
           color = Color.White
         )
       }
+    }
+    validationMessage?.let { message ->
+      Text(
+        text = message,
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(top = 8.dp)
+          .testTag("tracing_validation_message"),
+        textAlign = TextAlign.Center,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        color = KidsTertiary
+      )
     }
   }
 }
