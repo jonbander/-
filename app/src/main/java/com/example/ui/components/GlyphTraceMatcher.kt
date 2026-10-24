@@ -120,11 +120,22 @@ object GlyphTraceMatcher {
       ((pixels[index] ushr 24) and 0xFF) >= ALPHA_THRESHOLD
     }
     val skeletonMask = thin(mask, bitmapWidth, bitmapHeight)
-    val skeleton = skeletonMask.indices
+    val thinnedSkeleton = skeletonMask.indices
       .asSequence()
       .filter { skeletonMask[it] }
       .map { index -> Offset((index % bitmapWidth).toFloat(), (index / bitmapWidth).toFloat()) }
       .toList()
+    // Some Arabic glyphs become very small or fragmented after thinning at low bitmap scales.
+    // Retain the rendered ink mask in that case rather than silently disabling tracing.
+    val skeleton = if (thinnedSkeleton.size >= 8) {
+      thinnedSkeleton
+    } else {
+      mask.indices
+        .asSequence()
+        .filter { mask[it] }
+        .map { index -> Offset((index % bitmapWidth).toFloat(), (index / bitmapWidth).toFloat()) }
+        .toList()
+    }
     if (skeleton.size < 8) {
       bitmap.recycle()
       return null
