@@ -82,6 +82,31 @@ data class SparkleParticle(
   val radius: Float
 )
 
+private fun createSmoothGuidePath(points: List<Offset>): Path {
+  return Path().apply {
+    if (points.isEmpty()) return@apply
+
+    moveTo(points.first().x, points.first().y)
+    if (points.size == 1) return@apply
+
+    for (index in 0 until points.lastIndex) {
+      val previous = points[(index - 1).coerceAtLeast(0)]
+      val start = points[index]
+      val end = points[index + 1]
+      val next = points[(index + 2).coerceAtMost(points.lastIndex)]
+
+      cubicTo(
+        start.x + (end.x - previous.x) / 6f,
+        start.y + (end.y - previous.y) / 6f,
+        end.x - (next.x - start.x) / 6f,
+        end.y - (next.y - start.y) / 6f,
+        end.x,
+        end.y
+      )
+    }
+  }
+}
+
 @Composable
 fun TracingCanvas(
   glyph: String,
@@ -133,34 +158,36 @@ fun TracingCanvas(
         .clip(RoundedCornerShape(24.dp))
         .background(KidsCanvasBg)
         .border(3.dp, primaryColor.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-        .pointerInput(selectedColor, sessionKey) {
-          detectDragGestures(
-            onDragStart = { offset ->
-              currentPoints = listOf(offset)
-              // Add a couple sparkles
-              sparkles.add(SparkleParticle(offset, selectedColor, 12f))
-            },
-            onDrag = { change, _ ->
-              change.consume()
-              currentPoints = currentPoints + change.position
-              if (currentPoints.size % 4 == 0) {
-                sparkles.add(SparkleParticle(change.position, selectedColor, 10f))
-                if (sparkles.size > 25) sparkles.removeAt(0)
-              }
-            },
-            onDragEnd = {
-              if (currentPoints.isNotEmpty()) {
-                strokes.add(DrawnStroke(currentPoints, selectedColor, 30f))
+    ) {
+      Canvas(
+        modifier = Modifier
+          .fillMaxSize()
+          .pointerInput(selectedColor, sessionKey) {
+            detectDragGestures(
+              onDragStart = { offset ->
+                currentPoints = listOf(offset)
+                sparkles.add(SparkleParticle(offset, selectedColor, 12f))
+              },
+              onDrag = { change, _ ->
+                change.consume()
+                currentPoints = currentPoints + change.position
+                if (currentPoints.size % 4 == 0) {
+                  sparkles.add(SparkleParticle(change.position, selectedColor, 10f))
+                  if (sparkles.size > 25) sparkles.removeAt(0)
+                }
+              },
+              onDragEnd = {
+                if (currentPoints.isNotEmpty()) {
+                  strokes.add(DrawnStroke(currentPoints, selectedColor, 30f))
+                  currentPoints = emptyList()
+                }
+              },
+              onDragCancel = {
                 currentPoints = emptyList()
               }
-            },
-            onDragCancel = {
-              currentPoints = emptyList()
-            }
-          )
-        }
-    ) {
-      Canvas(modifier = Modifier.fillMaxSize()) {
+            )
+          }
+      ) {
         val width = size.width
         val height = size.height
 
@@ -191,17 +218,34 @@ fun TracingCanvas(
           strokeWidth = 3.5.dp.toPx()
         )
 
-        // 2. Render big faint target Arabic glyph in the center background
-        drawContext.canvas.nativeCanvas.apply {
-          val paint = Paint().apply {
-            textSize = 210.sp.toPx()
-            color = android.graphics.Color.argb(45, 80, 100, 140)
-            textAlign = Paint.Align.CENTER
-            isAntiAlias = true
-            isFakeBoldText = true
-          }
-          // Center glyph coordinates
-          drawText(glyph, width / 2f, baselineY - 12f, paint)
+        // 2. Draw the trace spine from the same normalized points used by the targets.
+        // This keeps the visible guide, target circles, and finger input in one coordinate space.
+        val bodyPoints = guidePoints
+          .asSequence()
+          .filterNot { it.isDot }
+          .sortedBy { it.order }
+          .map { point -> Offset(point.x * width, point.y * height) }
+          .toList()
+        if (bodyPoints.size > 1) {
+          val guidePath = createSmoothGuidePath(bodyPoints)
+          drawPath(
+            path = guidePath,
+            color = Color(0xFF8290A5).copy(alpha = 0.20f),
+            style = Stroke(
+              width = 28.dp.toPx(),
+              cap = StrokeCap.Round,
+              join = StrokeJoin.Round
+            )
+          )
+          drawPath(
+            path = guidePath,
+            color = primaryColor.copy(alpha = 0.42f),
+            style = Stroke(
+              width = 4.dp.toPx(),
+              cap = StrokeCap.Round,
+              join = StrokeJoin.Round
+            )
+          )
         }
 
         // 3. Draw guide waypoints and start arrow
@@ -319,6 +363,13 @@ fun TracingCanvas(
           modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
+          Text(
+            text = glyph,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Black,
+            color = primaryColor
+          )
+          Spacer(modifier = Modifier.width(8.dp))
           Icon(
             imageVector = Icons.Default.AutoAwesome,
             contentDescription = null,
@@ -327,8 +378,8 @@ fun TracingCanvas(
           )
           Spacer(modifier = Modifier.width(6.dp))
           Text(
-            text = "تتبع الحرف بإصبعك",
-            fontSize = 13.sp,
+            text = "اتبع المسار بإصبعك",
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
           )
