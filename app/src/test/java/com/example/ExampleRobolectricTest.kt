@@ -2,9 +2,11 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.model.LetterPosition
 import com.example.data.repository.LetterRepository
 import com.example.data.repository.UserProgressRepository
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,13 +45,23 @@ class ExampleRobolectricTest {
   @Test
   fun `progress repository tracks stars and completed letters`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
+    context.getSharedPreferences("kids_arabic_progress", Context.MODE_PRIVATE)
+      .edit()
+      .clear()
+      .commit()
     val repo = UserProgressRepository(context)
 
     val initialStars = repo.totalStars.value
     repo.addStars(5)
     assertEquals(initialStars + 5, repo.totalStars.value)
 
-    repo.recordFormTraced("ب", "أول الكلمة")
+    LetterPosition.values().dropLast(1).forEach { position ->
+      repo.recordFormTraced("ب", position)
+      assertFalse(repo.isLetterCompleted("ب"))
+    }
+    repo.recordFormTraced("ب", LetterPosition.FINAL)
+
     assertTrue(repo.isLetterCompleted("ب"))
+    assertEquals(initialStars + 9, repo.totalStars.value)
   }
 }
