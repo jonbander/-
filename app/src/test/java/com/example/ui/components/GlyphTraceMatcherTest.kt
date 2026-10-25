@@ -34,6 +34,18 @@ class GlyphTraceMatcherTest {
   }
 
   @Test
+  fun `slightly offset child trace is accepted`() {
+    val template = lineAndCornerTemplate()
+    val trace = listOf(
+      listOf(Offset(20f, 35f), Offset(80f, 35f), Offset(85f, 70f))
+    )
+
+    val result = GlyphTraceMatcher.evaluate(template, trace)
+
+    assertTrue("A small hand-tracing deviation should be accepted: $result", result.accepted)
+  }
+
+  @Test
   fun `unrelated scribble is rejected`() {
     val template = lineAndCornerTemplate()
     val trace = listOf(listOf(Offset(15f, 88f), Offset(85f, 88f)))
@@ -84,6 +96,22 @@ class GlyphTraceMatcherTest {
   }
 
   @Test
+  fun `an ideal trace of the rendered Arabic template is accepted`() {
+    val template = GlyphTraceMatcher.createTemplate(
+      glyph = "ب",
+      canvasWidth = 600,
+      canvasHeight = 560,
+      textSizePx = 420f
+    )!!
+    val trace = traceTemplateComponents(template)
+
+    val result = GlyphTraceMatcher.evaluate(template, trace)
+
+    assertTrue("The displayed glyph should match its own ideal trace: $result", result.accepted)
+    template.bitmap.recycle()
+  }
+
+  @Test
   fun `every repository letter form has a nonempty renderable template`() {
     val expectedPositions = listOf(
       LetterPosition.ISOLATED,
@@ -108,6 +136,38 @@ class GlyphTraceMatcherTest {
         template.bitmap.recycle()
       }
     }
+  }
+
+  private fun traceTemplateComponents(template: GlyphTraceTemplate): List<List<Offset>> {
+    val traces = ArrayList<List<Offset>>()
+    val scaleX = template.canvasWidth.toFloat() / template.bitmap.width
+    val scaleY = template.canvasHeight.toFloat() / template.bitmap.height
+
+    template.components.forEach { component ->
+      val remaining = component.toMutableList()
+      while (remaining.isNotEmpty()) {
+        val path = ArrayList<Offset>()
+        var current = remaining.removeAt(0)
+        path += current
+        while (remaining.isNotEmpty()) {
+          val nextIndex = remaining.indices
+            .minByOrNull { index ->
+              val dx = remaining[index].x - current.x
+              val dy = remaining[index].y - current.y
+              dx * dx + dy * dy
+            }
+          if (nextIndex == null) break
+          val next = remaining[nextIndex]
+          val dx = next.x - current.x
+          val dy = next.y - current.y
+          if (dx * dx + dy * dy > 2.1f) break
+          current = remaining.removeAt(nextIndex)
+          path += current
+        }
+        traces += path.map { Offset(it.x * scaleX, it.y * scaleY) }
+      }
+    }
+    return traces
   }
 
   private fun lineAndCornerTemplate(): GlyphTraceTemplate {

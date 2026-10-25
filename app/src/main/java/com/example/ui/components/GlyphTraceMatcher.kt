@@ -35,11 +35,13 @@ object GlyphTraceMatcher {
   private const val MAX_BITMAP_DIMENSION = 320
   private const val ALPHA_THRESHOLD = 12
   private const val SAMPLE_SPACING_PX = 2.5f
-  private const val TOLERANCE_FRACTION = 0.035f
-  private const val MIN_PRECISION = 0.86f
-  const val REQUIRED_COVERAGE = 0.84f
-  private const val MIN_COMPONENT_COVERAGE = 0.68f
-  private const val MIN_STROKE_LENGTH_FRACTION = 0.14f
+  // Young children rarely trace a font glyph pixel-perfectly. Compare within a wider radius
+  // while retaining a substantial whole-letter coverage requirement to reject partial doodles.
+  private const val TOLERANCE_FRACTION = 0.06f
+  private const val MIN_PRECISION = 0.68f
+  const val REQUIRED_COVERAGE = 0.70f
+  private const val MIN_COMPONENT_COVERAGE = 0.45f
+  private const val MIN_STROKE_LENGTH_FRACTION = 0.09f
 
   fun createTemplate(
     glyph: String,

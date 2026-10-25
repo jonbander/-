@@ -13,6 +13,8 @@ class SoundHelper(context: Context) {
 
   private var tts: TextToSpeech? = null
   private var isTtsReady = false
+  private var pendingSpeech: String? = null
+  private var isReleased = false
   private var toneGen: ToneGenerator? = null
   private val handler = Handler(Looper.getMainLooper())
 
@@ -25,8 +27,18 @@ class SoundHelper(context: Context) {
 
     try {
       tts = TextToSpeech(context.applicationContext) { status ->
-        if (status == TextToSpeech.SUCCESS) {
+        if (isReleased) {
+          tts?.shutdown()
+        } else if (status == TextToSpeech.SUCCESS) {
           configureTtsLanguage()
+          if (isTtsReady) {
+            pendingSpeech?.let { text ->
+              pendingSpeech = null
+              speakReady(text)
+            }
+          }
+        } else {
+          Log.w("SoundHelper", "TextToSpeech initialization failed: $status")
         }
       }
     } catch (e: Exception) {
@@ -36,7 +48,7 @@ class SoundHelper(context: Context) {
 
   private fun configureTtsLanguage() {
     val engine = tts ?: return
-    val arabicResult = engine.setLanguage(Locale("ar"))
+    val arabicResult = engine.setLanguage(Locale.forLanguageTag("ar"))
     val languageResult = if (
       arabicResult == TextToSpeech.LANG_MISSING_DATA ||
       arabicResult == TextToSpeech.LANG_NOT_SUPPORTED
@@ -60,9 +72,26 @@ class SoundHelper(context: Context) {
   }
 
   fun speak(text: String) {
-    if (isTtsReady) {
-      tts?.stop()
-      tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_${System.currentTimeMillis()}")
+    if (isReleased || text.isBlank()) return
+    if (!isTtsReady) {
+      // TTS initialization is asynchronous. Keep the latest child-facing prompt instead of
+      // silently dropping taps made during startup.
+      pendingSpeech = text
+      return
+    }
+    speakReady(text)
+  }
+
+  private fun speakReady(text: String) {
+    val engine = tts ?: return
+    val status = engine.speak(
+      text,
+      TextToSpeech.QUEUE_FLUSH,
+      null,
+      "tts_${System.currentTimeMillis()}"
+    )
+    if (status == TextToSpeech.ERROR) {
+      Log.w("SoundHelper", "TextToSpeech rejected an utterance")
     }
   }
 
@@ -94,10 +123,16 @@ class SoundHelper(context: Context) {
   }
 
   fun shutdown() {
+    isReleased = true
+    isTtsReady = false
+    pendingSpeech = null
+    handler.removeCallbacksAndMessages(null)
     try {
       tts?.stop()
       tts?.shutdown()
+      tts = null
       toneGen?.release()
+      toneGen = null
     } catch (_: Exception) {}
   }
 }
